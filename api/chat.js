@@ -2,7 +2,7 @@
 
 export const config = {
   api: {
-    bodyParser: false, // Slackリクエストを正しく受けるため
+    bodyParser: false, // Slackリクエストを正しく受け取るため
   },
 };
 
@@ -41,18 +41,19 @@ export default async function handler(req, res) {
   const slackUser = event.user;
   const threadTs = event.thread_ts || event.ts;
 
-  // Botへのメンションチェック
   const isMentioned = slackText.includes(`<@${botUserId}>`);
   if (!isMentioned) {
     res.status(200).send('Not mentioned.');
     return;
   }
 
-  // メンションを取り除いた本文
   const cleanedText = slackText.replace(`<@${botUserId}>`, '').trim();
 
+  // ✅ ここで即レスする（リトライ防止！！）
+  res.status(200).send('ok');
+
   try {
-    // まずSlackに「考え中…🤔」投稿
+    // まずSlackに「考え中...🤔」を投稿
     const thinkingResponse = await fetch('https://slack.com/api/chat.postMessage', {
       method: 'POST',
       headers: {
@@ -69,7 +70,7 @@ export default async function handler(req, res) {
     const thinkingData = await thinkingResponse.json();
     const thinkingMessageTs = thinkingData.ts;
 
-    // Difyにリクエスト（inputs.sys.queryで送信！）
+    // Difyにチャットリクエストを送信（query + inputs両方送る）
     const difyResponse = await fetch('https://api.dify.ai/v1/chat-messages', {
       method: 'POST',
       headers: {
@@ -77,7 +78,8 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        inputs: { "sys.query": cleanedText },  // ← ここ重要！！
+        query: cleanedText,                    // ← ここ必須
+        inputs: { "sys.query": cleanedText },   // ← これも（必要なら）
         user: slackUser,
       }),
     });
@@ -86,7 +88,7 @@ export default async function handler(req, res) {
 
     if (!difyResponse.ok) {
       console.error('Dify API error:', difyData);
-      throw new Error('Dify API call failed');
+      return;
     }
 
     const replyText = difyData.answer || 'エラー: 返答が取れませんでした。';
@@ -105,10 +107,9 @@ export default async function handler(req, res) {
       }),
     });
 
-    res.status(200).send('ok');
   } catch (error) {
     console.error(error);
-    res.status(500).send('Internal Server Error');
   }
 }
+
 
