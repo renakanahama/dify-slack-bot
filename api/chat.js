@@ -2,6 +2,10 @@
 
 import fetch from 'node-fetch';
 
+const slackBotToken = process.env.SLACK_BOT_TOKEN;
+const difyApiKey = process.env.DIFY_API_KEY;
+const botUserId = process.env.SLACK_BOT_USER_ID;
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.status(405).send('Method Not Allowed');
@@ -20,8 +24,6 @@ export default async function handler(req, res) {
   const slackUser = event.user;
   const threadTs = event.thread_ts || event.ts;
 
-  const botUserId = 'あなたのBotのユーザーID'; // 忘れずセット！
-
   // 👇 メンションされてるか確認
   const isMentioned = slackText.includes(`<@${botUserId}>`);
   if (!isMentioned) {
@@ -33,28 +35,28 @@ export default async function handler(req, res) {
   const cleanedText = slackText.replace(`<@${botUserId}>`, '').trim();
 
   try {
-    // まずSlackに「考え中...」を投稿
+    // まずSlackに「考え中…」を投稿
     const thinkingResponse = await fetch('https://slack.com/api/chat.postMessage', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer あなたのSlack Botトークン`,
+        'Authorization': `Bearer ${slackBotToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         channel: slackChannel,
-        text: '考え中…🤔',  // ← ここでインジケータ出す
+        text: '考え中…🤔',
         thread_ts: threadTs,
       }),
     });
 
     const thinkingData = await thinkingResponse.json();
-    const thinkingMessageTs = thinkingData.ts;  // 「考え中」メッセージのtsを取得
+    const thinkingMessageTs = thinkingData.ts;
 
-    // そのあとDifyへリクエスト
+    // Difyへリクエスト
     const difyResponse = await fetch('https://api.dify.ai/v1/chat-messages', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer あなたのDify APIキー`,
+        'Authorization': `Bearer ${difyApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -66,16 +68,16 @@ export default async function handler(req, res) {
     const difyData = await difyResponse.json();
     const replyText = difyData.answer || 'エラー: 返答が取れませんでした。';
 
-    // 「考え中…」メッセージを更新してDifyの答えを上書きする
+    // SlackにDifyの答えを上書き
     await fetch('https://slack.com/api/chat.update', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer あなたのSlack Botトークン`,
+        'Authorization': `Bearer ${slackBotToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         channel: slackChannel,
-        ts: thinkingMessageTs,  // ← 更新対象のメッセージ
+        ts: thinkingMessageTs,
         text: replyText,
       }),
     });
@@ -86,3 +88,4 @@ export default async function handler(req, res) {
     res.status(500).send('Internal Server Error');
   }
 }
+
