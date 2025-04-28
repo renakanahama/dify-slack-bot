@@ -7,18 +7,32 @@ import fetch from 'node-fetch';
 const {
   SLACK_BOT_TOKEN,
   DIFY_API_KEY,
-  SLACK_BOT_USER_ID: botUserId,
+  SLACK_BOT_USER_ID: BOT_USER_ID,
 } = process.env;
 
+/** Slack API helper */
+const slack = (method, payload) =>
+  fetch(`https://slack.com/api/${method}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  }).then(r => r.json()).catch(e => ({ ok: false, error: e.message }));
+
 export default async function handler(req, res) {
-  console.log('🌟 request');
+  /* 0. 受信メソッドを必ずログ */
+  console.log('🌟 request', req.method);
 
-  if (req.method !== 'POST') { res.status(405).end(); return; }
+  /* 1. POST 以外 (GET/HEAD 等) は 200 を返して即終了 */
+  if (req.method !== 'POST') { res.status(200).end(); return; }
 
+  /* 2. ボディ取得 */
   const raw = await buffer(req);
   const body = JSON.parse(raw.toString());
 
-  // URL 検証
+  /* 3. Slack URL 検証 (challenge) に応答 */
   if (body.type === 'url_verification') {
     res.setHeader('Content-Type', 'text/plain');
     res.status(200).send(body.challenge);
@@ -28,28 +42,29 @@ export default async function handler(req, res) {
   const ev = body.event;
   if (!ev?.text) { res.status(200).end(); return; }
 
-  // ── Bot メンション判定 & クリーンテキスト作成
-  if (!ev.text.includes(`<@${botUserId}>`)) { res.status(200).end(); return; }
-  const cleanedText = ev.text.replace(`<@${botUserId}>`, '').trim();
-  if (!cleanedText) { res.status(200).end(); return; }
+  /* 4. Bot メンションが無ければ無視 */
+  if (!ev.text.includes(`<@${BOT_USER_ID}>`)) { res.status(200).end(); return; }
 
-  // リトライ防止の即 200OK
+  /* 5. メンションを削った本文 */
+  const cleaned = ev.text.replace(`<@${BOT_USER_ID}>`, '').trim();
+  if (!cleaned) { res.status(200).end(); return; }
+
+  /* 6. 即 200 OK → Slack のリトライ防止 */
   res.status(200).end();
 
   try {
-    /** 1) 「考え中…」投稿 */
-    const postResp = await slack('chat.postMessage', {
+    /* 7. 「考え中…🤔」投稿 */
+    const thinking = await slack('chat.postMessage', {
       channel: ev.channel,
       text: '考え中…🤔',
       thread_ts: ev.thread_ts || ev.ts,
     });
-    if (!postResp.ok) {
-      console.error('chat.postMessage error', postResp);
+    if (!thinking.ok) {
+      console.error('chat.postMessage error', thinking);
       return;
     }
-    const thinkingTs = postResp.ts;
 
-    /** 2) Dify へ問い合わせ */
+    /* 8. Dify 呼び出し (blocking モード推奨) */
     const dify = await fetch('https://api.dify.ai/v1/chat-messages', {
       method: 'POST',
       headers: {
@@ -57,10 +72,10 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        query: cleanedText,
-        inputs: { 'sys.query': cleanedText },
+        query: cleaned,
+        inputs: { 'sys.query': cleaned },
         user: ev.user,
-        response_mode: 'blocking',       // ← streaming で詰まる場合は blocking 固定
+        response_mode: 'blocking',
       }),
     }).then(r => r.json()).catch(e => ({ error: e.message }));
 
@@ -68,28 +83,16 @@ export default async function handler(req, res) {
 
     const answer = dify.answer || dify.error || 'エラー: 返答が取れませんでした。';
 
-    /** 3) 「考え中…」メッセージを更新 */
+    /* 9. 「考え中…」を上書き */
     const upd = await slack('chat.update', {
       channel: ev.channel,
-      ts: thinkingTs,
+      ts: thinking.ts,
       text: answer,
     });
     if (!upd.ok) console.error('chat.update error', upd);
   } catch (err) {
-    console.error('unhandled', err);
+    console.error('❌ unhandled error', err);
   }
-}
-
-/* Slack API helper */
-function slack(method, body) {
-  return fetch(`https://slack.com/api/${method}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  }).then(r => r.json()).catch(e => ({ ok: false, error: e.message }));
 }
 
 
