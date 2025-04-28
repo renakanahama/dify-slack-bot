@@ -70,18 +70,18 @@ export default async function handler(req, res) {
     const thinkingData = await thinkingResponse.json();
     const thinkingMessageTs = thinkingData.ts;
 
-    // Difyにチャットリクエストを送信（inputs.textで送る！！）
-    const difyResponse = await fetch('https://api.dify.ai/v1/chat-messages', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${difyApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        inputs: { text: cleanedText }, // ← ここ超重要
-        user: slackUser,
-      }),
-    });
+    // Difyにチャットリクエストを送信（inputsじゃなくてqueryで送る）
+  const difyResponse = await fetch('https://api.dify.ai/v1/chat-messages', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${difyApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      query: cleanedText,  // ← これだけ！inputsなし！！
+      user: slackUser,
+    }),
+  });
 
     const difyData = await difyResponse.json();
 
