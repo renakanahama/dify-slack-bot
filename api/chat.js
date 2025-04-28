@@ -55,9 +55,12 @@ export default async function handler(req, res) {
     return;
   }
 
+  const cleanedText = slackText.replace(`<@${botUserId}>`, '').trim();
+  console.log('✏️ cleanedText:', cleanedText);
+
   console.log('✅ BotにメンションされたのでDifyへ問い合わせ開始！');
 
-  res.status(200).send('ok'); // ここで即レスしてリトライ防止！
+  res.status(200).send('ok'); // ここで即レス（リトライ防止）
 
   try {
     // Slackに「考え中…」を投稿
@@ -79,7 +82,9 @@ export default async function handler(req, res) {
 
     console.log('📨 Slackに考え中メッセージ送信成功');
 
-    // Difyにリクエスト送信（query + inputs）
+    // ここでさらにログ出す！
+    console.log('🛫 Difyに送信開始 (query内容):', cleanedText);
+
     const difyResponse = await fetch('https://api.dify.ai/v1/chat-messages', {
       method: 'POST',
       headers: {
@@ -88,17 +93,19 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         query: cleanedText,                    // 必須
-        inputs: { "sys.query": cleanedText },   // 必要なら
+        inputs: { "sys.query": cleanedText },   // 併用
         user: slackUser,
       }),
     });
+
+    console.log('🛬 Difyリクエスト送信完了');
 
     const difyData = await difyResponse.json();
 
     console.log('🤖 Difyからのレスポンス:', difyData);
 
     if (!difyResponse.ok) {
-      console.error('Dify API error:', difyData);
+      console.error('❌ Dify API error:', difyData);
       return;
     }
 
@@ -122,7 +129,8 @@ export default async function handler(req, res) {
     console.log('✅ Slackへの最終メッセージ投稿完了');
 
   } catch (error) {
-    console.error('❌ エラー発生:', error);
+    console.error('❌ 例外エラー発生:', error);
   }
 }
+
 
