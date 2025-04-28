@@ -2,7 +2,7 @@
 
 export const config = {
   api: {
-    bodyParser: false, // ここ！Slackが送る形式に合わせて一旦無効化する
+    bodyParser: false,
   },
 };
 
@@ -19,13 +19,13 @@ export default async function handler(req, res) {
     return;
   }
 
-  // Slackのリクエストは buffer で受け取る必要がある
   const rawBody = await buffer(req);
   const bodyString = rawBody.toString();
   const body = JSON.parse(bodyString);
 
-  // 👇 challenge対応
+  // 👇 challenge対応をさらに強化する
   if (body.type === 'url_verification') {
+    res.setHeader('Content-Type', 'text/plain'); // ここ追加！
     return res.status(200).send(body.challenge);
   }
 
