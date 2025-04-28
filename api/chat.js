@@ -70,7 +70,7 @@ export default async function handler(req, res) {
     const thinkingData = await thinkingResponse.json();
     const thinkingMessageTs = thinkingData.ts;
 
-    // Difyにクエリ送信（inputsじゃなくてquery！）
+    // Difyにチャットリクエストを送信（inputs.textで送る！！）
     const difyResponse = await fetch('https://api.dify.ai/v1/chat-messages', {
       method: 'POST',
       headers: {
@@ -78,7 +78,7 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        query: cleanedText,  // ← ここ超重要
+        inputs: { text: cleanedText }, // ← ここ超重要
         user: slackUser,
       }),
     });
@@ -112,4 +112,5 @@ export default async function handler(req, res) {
     res.status(500).send('Internal Server Error');
   }
 }
+
 
