@@ -2,7 +2,7 @@
 
 export const config = {
   api: {
-    bodyParser: false, // Slackリクエストを正しく受け取るため
+    bodyParser: false, // Slackリクエストを正しく受けるため
   },
 };
 
@@ -19,7 +19,6 @@ export default async function handler(req, res) {
     return;
   }
 
-  // Slackリクエストを生データで読む
   const rawBody = await buffer(req);
   const bodyString = rawBody.toString();
   const body = JSON.parse(bodyString);
@@ -42,7 +41,7 @@ export default async function handler(req, res) {
   const slackUser = event.user;
   const threadTs = event.thread_ts || event.ts;
 
-  // Botにメンションされているか確認
+  // Botへのメンションチェック
   const isMentioned = slackText.includes(`<@${botUserId}>`);
   if (!isMentioned) {
     res.status(200).send('Not mentioned.');
@@ -53,7 +52,7 @@ export default async function handler(req, res) {
   const cleanedText = slackText.replace(`<@${botUserId}>`, '').trim();
 
   try {
-    // まずSlackに「考え中...🤔」を投稿
+    // まずSlackに「考え中…🤔」投稿
     const thinkingResponse = await fetch('https://slack.com/api/chat.postMessage', {
       method: 'POST',
       headers: {
@@ -70,18 +69,18 @@ export default async function handler(req, res) {
     const thinkingData = await thinkingResponse.json();
     const thinkingMessageTs = thinkingData.ts;
 
-    // Difyにチャットリクエストを送信（inputsじゃなくてqueryで送る）
-  const difyResponse = await fetch('https://api.dify.ai/v1/chat-messages', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${difyApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      query: cleanedText,  // ← これだけ！inputsなし！！
-      user: slackUser,
-    }),
-  });
+    // Difyにリクエスト（inputs.sys.queryで送信！）
+    const difyResponse = await fetch('https://api.dify.ai/v1/chat-messages', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${difyApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        inputs: { "sys.query": cleanedText },  // ← ここ重要！！
+        user: slackUser,
+      }),
+    });
 
     const difyData = await difyResponse.json();
 
@@ -92,7 +91,7 @@ export default async function handler(req, res) {
 
     const replyText = difyData.answer || 'エラー: 返答が取れませんでした。';
 
-    // 「考え中…🤔」メッセージをDifyの回答で上書き
+    // Slackの「考え中…」メッセージを更新
     await fetch('https://slack.com/api/chat.update', {
       method: 'POST',
       headers: {
@@ -112,5 +111,4 @@ export default async function handler(req, res) {
     res.status(500).send('Internal Server Error');
   }
 }
-
 
