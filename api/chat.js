@@ -1,5 +1,12 @@
 // api/chat.js
 
+export const config = {
+  api: {
+    bodyParser: false, // ここ！Slackが送る形式に合わせて一旦無効化する
+  },
+};
+
+import { buffer } from 'micro';
 import fetch from 'node-fetch';
 
 const slackBotToken = process.env.SLACK_BOT_TOKEN;
@@ -12,12 +19,17 @@ export default async function handler(req, res) {
     return;
   }
 
-  const event = req.body.event;
+  // Slackのリクエストは buffer で受け取る必要がある
+  const rawBody = await buffer(req);
+  const bodyString = rawBody.toString();
+  const body = JSON.parse(bodyString);
 
-  // 👇 ここ追加！！ challenge対応
-  if (req.body.type === 'url_verification') {
-    return res.status(200).send(req.body.challenge);
+  // 👇 challenge対応
+  if (body.type === 'url_verification') {
+    return res.status(200).send(body.challenge);
   }
+
+  const event = body.event;
 
   if (!event || !event.text) {
     res.status(200).send('No text event.');
@@ -88,3 +100,4 @@ export default async function handler(req, res) {
     res.status(500).send('Internal Server Error');
   }
 }
+
