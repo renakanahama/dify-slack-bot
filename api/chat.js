@@ -9,7 +9,7 @@ const {
   SLACK_BOT_TOKEN,
   DIFY_API_KEY,
   SLACK_BOT_USER_ID,
-  DEBUG = 'false',          // DEBUG=true で詳細ログ
+  DEBUG = 'true',          // DEBUG=true で詳細ログ
 } = process.env;
 
 const log = (...args) => DEBUG === 'true' && console.log(...args);
