@@ -86,6 +86,8 @@ export default async function handler(req, res) {
 
     const difyData = await difyResponse.json();
 
+    console.log('Difyからのレスポンス:', difyData);  // ★ここ追加！！
+
     if (!difyResponse.ok) {
       console.error('Dify API error:', difyData);
       return;
