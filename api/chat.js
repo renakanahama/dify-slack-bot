@@ -2,7 +2,7 @@
 
 export const config = {
   api: {
-    bodyParser: false,
+    bodyParser: false, // Slackリクエストを正しく受けるため
   },
 };
 
@@ -19,13 +19,14 @@ export default async function handler(req, res) {
     return;
   }
 
+  // Slackリクエストを生データで読む
   const rawBody = await buffer(req);
   const bodyString = rawBody.toString();
   const body = JSON.parse(bodyString);
 
-  // 👇 challenge対応をさらに強化する
+  // Slack URL検証リクエスト（challenge対応）
   if (body.type === 'url_verification') {
-    res.setHeader('Content-Type', 'text/plain'); // ここ追加！
+    res.setHeader('Content-Type', 'text/plain');
     return res.status(200).send(body.challenge);
   }
 
@@ -41,15 +42,18 @@ export default async function handler(req, res) {
   const slackUser = event.user;
   const threadTs = event.thread_ts || event.ts;
 
+  // Botにメンションされているか確認
   const isMentioned = slackText.includes(`<@${botUserId}>`);
   if (!isMentioned) {
     res.status(200).send('Not mentioned.');
     return;
   }
 
+  // メンションを取り除いた本文
   const cleanedText = slackText.replace(`<@${botUserId}>`, '').trim();
 
   try {
+    // まずSlackに「考え中...🤔」と投稿
     const thinkingResponse = await fetch('https://slack.com/api/chat.postMessage', {
       method: 'POST',
       headers: {
@@ -66,6 +70,7 @@ export default async function handler(req, res) {
     const thinkingData = await thinkingResponse.json();
     const thinkingMessageTs = thinkingData.ts;
 
+    // Difyにチャットリクエストを送信（sys.queryで送る）
     const difyResponse = await fetch('https://api.dify.ai/v1/chat-messages', {
       method: 'POST',
       headers: {
@@ -73,7 +78,7 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        inputs: { text: cleanedText },
+        inputs: { "sys.query": cleanedText },
         user: slackUser,
       }),
     });
@@ -81,6 +86,7 @@ export default async function handler(req, res) {
     const difyData = await difyResponse.json();
     const replyText = difyData.answer || 'エラー: 返答が取れませんでした。';
 
+    // さっき投稿した「考え中」メッセージをアップデート
     await fetch('https://slack.com/api/chat.update', {
       method: 'POST',
       headers: {
