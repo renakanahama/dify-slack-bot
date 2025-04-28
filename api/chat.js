@@ -53,16 +53,19 @@ export default async function handler(req, res) {
   res.status(200).end();
 
   try {
-    /* 7. 「考え中…🤔」投稿 */
-    const thinking = await slack('chat.postMessage', {
-      channel: ev.channel,
-      text: '考え中…🤔',
-      thread_ts: ev.thread_ts || ev.ts,
-    });
-    if (!thinking.ok) {
-      console.error('chat.postMessage error', thinking);
-      return;
-    }
+    /* 7) 「考え中…🤔」投稿 */
+  const thinking = await slack('chat.postMessage', {
+    channel: ev.channel,
+    text: '考え中…🤔',
+    thread_ts: ev.thread_ts || ev.ts,
+  });
+  console.log('📨 postMessage resp', thinking);   // ← 追加
+  
+  if (!thinking.ok) {
+    console.error('❌ postMessage failed', thinking);
+    return;                                        // 失敗なら処理を止める
+  }
+
 
     /* 8. Dify 呼び出し (blocking モード推奨) */
     const dify = await fetch('https://api.dify.ai/v1/chat-messages', {
